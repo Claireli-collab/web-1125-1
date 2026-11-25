@@ -1,0 +1,613 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>聖誕快樂 - 專屬互動祝福卡片</title>
+    <!-- 引入 Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- 引入 Tone.js 用於生成聖誕音樂音效 -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/tone/14.8.49/Tone.js"></script>
+    <!-- 引入 Google Fonts (Noto Serif TC & Great Vibes) -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Great+Vibes&family=Noto+Sans+TC:wght@300;400;500;700&family=Noto+Serif+TC:wght@400;600;700&display=swap" rel="stylesheet">
+    
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    fontFamily: {
+                        sans: ['"Noto Sans TC"', 'sans-serif'],
+                        serif: ['"Noto Serif TC"', 'serif'],
+                        script: ['"Great Vibes"', 'cursive'],
+                    },
+                    colors: {
+                        christmas: {
+                            red: '#B91C1C',
+                            darkRed: '#7F1D1D',
+                            green: '#15803D',
+                            darkGreen: '#064E3B',
+                            gold: '#D97706',
+                            lightGold: '#FDE68A',
+                            cream: '#FFFBEB',
+                        }
+                    },
+                    animation: {
+                        'float': 'float 3s ease-in-out infinite',
+                        'twinkle': 'twinkle 2s ease-in-out infinite',
+                    },
+                    keyframes: {
+                        float: {
+                            '0%, 100%': { transform: 'translateY(0)' },
+                            '50%': { transform: 'translateY(-10px)' },
+                        },
+                        twinkle: {
+                            '0%, 100%': { opacity: 1, transform: 'scale(1)' },
+                            '50%': { opacity: 0.4, transform: 'scale(0.85)' },
+                        }
+                    }
+                }
+            }
+        }
+    </script>
+
+    <style>
+        /* 3D 卡片翻轉效果所需的自定義樣式 */
+        .perspective-1000 {
+            perspective: 1500px;
+        }
+        .transform-style-3d {
+            transform-style: preserve-3d;
+        }
+        .backface-hidden {
+            backface-visibility: hidden;
+            -webkit-backface-visibility: hidden;
+        }
+        .rotate-y-180 {
+            transform: rotateY(-180deg);
+        }
+        .card-transition {
+            transition: transform 1.2s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+        
+        /* 卡片打開時的位移 (桌機版置中視覺) */
+        @media (min-width: 768px) {
+            .card-container.is-open {
+                transform: translateX(50%);
+            }
+        }
+
+        /* 紙張紋理背景 */
+        .paper-texture {
+            background-color: #FFFBEB;
+            background-image: radial-gradient(#FDE68A 0.75px, transparent 0.75px), radial-gradient(#FDE68A 0.75px, #FFFBEB 0.75px);
+            background-size: 30px 30px;
+            background-position: 0 0, 15px 15px;
+        }
+
+        /* 隱藏捲軸但保留功能 */
+        .no-scrollbar::-webkit-scrollbar {
+            display: none;
+        }
+        .no-scrollbar {
+            -ms-overflow-style: none;
+            scrollbar-width: none;
+        }
+    </style>
+</head>
+<body class="bg-gradient-to-b from-slate-900 via-red-950 to-emerald-950 min-h-screen text-slate-800 overflow-x-hidden flex flex-col justify-between relative select-none">
+
+    <!-- 背景飄雪畫布 -->
+    <canvas id="snowCanvas" class="fixed inset-0 pointer-events-none z-0"></canvas>
+
+    <!-- 頂部控制列 -->
+    <header class="relative z-20 w-full p-4 flex justify-between items-center max-w-5xl mx-auto">
+        <div class="flex items-center space-x-2 text-amber-200">
+            <svg class="w-6 h-6 animate-twinkle text-amber-400" fill="currentColor" viewBox="0 0 20 20">
+                <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z" />
+            </svg>
+            <span class="font-serif font-semibold tracking-wider text-sm sm:text-base">Season's Greetings</span>
+        </div>
+
+        <div class="flex items-center space-x-2 sm:space-x-3">
+            <!-- 音樂盒按鈕 -->
+            <button id="musicBtn" class="flex items-center space-x-1.5 bg-white/10 hover:bg-white/20 backdrop-blur-md text-amber-100 border border-amber-200/30 px-3 py-2 rounded-full text-xs sm:text-sm transition shadow-lg cursor-pointer">
+                <span id="musicIcon">🔇</span>
+                <span id="musicText">播放音樂</span>
+            </button>
+            <!-- 自訂卡片按鈕 -->
+            <button id="editBtn" class="flex items-center space-x-1.5 bg-amber-500 hover:bg-amber-600 text-slate-900 font-medium px-3.5 py-2 rounded-full text-xs sm:text-sm transition shadow-lg cursor-pointer">
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                </svg>
+                <span>寫卡片</span>
+            </button>
+        </div>
+    </header>
+
+    <!-- 主要卡片展示區 -->
+    <main class="relative z-10 flex-grow flex flex-col items-center justify-center p-4 my-4">
+        
+        <!-- 提示文字 -->
+        <p id="hintText" class="text-amber-200/80 text-sm mb-4 animate-pulse tracking-widest">
+            ✨ 點擊卡片開啟聖誕祝福 ✨
+        </p>
+
+        <!-- 3D 卡片容器 -->
+        <div class="perspective-1000 w-full max-w-[340px] sm:max-w-[380px] h-[480px] sm:h-[520px] flex items-center justify-center">
+            <div id="cardWrapper" class="card-container relative w-full h-full transition-transform duration-1000 ease-in-out cursor-pointer">
+                
+                <!-- 卡片內頁 (右側底層) -->
+                <div class="absolute inset-0 w-full h-full paper-texture rounded-2xl shadow-2xl border-4 border-amber-300/60 p-6 sm:p-8 flex flex-col justify-between overflow-hidden">
+                    <!-- 角落裝飾 -->
+                    <div class="absolute top-2 right-2 text-2xl opacity-40">❄️</div>
+                    <div class="absolute bottom-2 left-2 text-2xl opacity-40">🎄</div>
+
+                    <!-- 內頁頂部 -->
+                    <div class="border-b border-amber-300/50 pb-3">
+                        <p class="text-xs text-amber-700 font-medium tracking-widest uppercase">Dear</p>
+                        <h2 id="displayRecipient" class="font-serif text-xl sm:text-2xl font-bold text-red-800 mt-0.5 truncate">
+                            親愛的朋友
+                        </h2>
+                    </div>
+
+                    <!-- 內頁祝福語內容 -->
+                    <div class="my-4 flex-grow overflow-y-auto no-scrollbar flex items-center">
+                        <p id="displayMessage" class="font-serif text-slate-700 text-base sm:text-lg leading-relaxed whitespace-pre-line">
+                            在這個充滿溫暖與奇蹟的季節裡，願聖誕的鐘聲為你帶來無盡的喜悅與平安。
+
+                            願新的一年，你所期盼的都能如願以償，每一天都閃耀著幸福的光芒！
+                        </p>
+                    </div>
+
+                    <!-- 內頁底部署名與互動按鈕 -->
+                    <div class="border-t border-amber-300/50 pt-3 flex items-end justify-between">
+                        <div>
+                            <p class="text-xs text-slate-500">From</p>
+                            <p id="displaySender" class="font-serif text-base sm:text-lg font-semibold text-emerald-800">
+                                你的摯友
+                            </p>
+                        </div>
+                        <button id="closeCardBtn" class="text-xs bg-red-100 hover:bg-red-200 text-red-800 px-3 py-1.5 rounded-full font-medium transition">
+                            闔上卡片
+                        </button>
+                    </div>
+                </div>
+
+                <!-- 卡片封面 (會翻轉的門片) -->
+                <div id="cardFront" class="card-transition transform-style-3d origin-left absolute inset-0 w-full h-full z-20">
+                    
+                    <!-- 封面正面 -->
+                    <div class="backface-hidden absolute inset-0 w-full h-full bg-gradient-to-br from-red-700 via-red-800 to-red-950 rounded-2xl shadow-2xl border-4 border-amber-400/80 p-6 flex flex-col items-center justify-between text-center overflow-hidden">
+                        
+                        <!-- 裝飾光暈 -->
+                        <div class="absolute -top-20 -left-20 w-48 h-48 bg-amber-400/20 rounded-full blur-2xl"></div>
+                        <div class="absolute -bottom-20 -right-20 w-48 h-48 bg-emerald-500/20 rounded-full blur-2xl"></div>
+
+                        <!-- 頂部標語 -->
+                        <div class="mt-2 z-10">
+                            <span class="inline-block px-3 py-1 rounded-full bg-amber-400/20 border border-amber-300/40 text-amber-200 text-xs tracking-widest uppercase">
+                                Warmest Wishes
+                            </span>
+                        </div>
+
+                        <!-- 中央聖誕樹 SVG 插畫 -->
+                        <div class="relative z-10 my-2 animate-float">
+                            <svg class="w-44 h-44 sm:w-52 sm:h-52 drop-shadow-2xl" viewBox="0 0 200 200" fill="none" xmlns="http://www.w3.org/2000/svg">
+                                <!-- 樹幹 -->
+                                <rect x="88" y="155" width="24" height="25" rx="3" fill="#78350F"/>
+                                <!-- 樹葉層 (底層) -->
+                                <path d="M100 75L35 158H165L100 75Z" fill="#065F46"/>
+                                <path d="M100 75L35 158H100V75Z" fill="#047857"/>
+                                <!-- 樹葉層 (中層) -->
+                                <path d="M100 48L48 122H152L100 48Z" fill="#059669"/>
+                                <path d="M100 48L48 122H100V48Z" fill="#10B981"/>
+                                <!-- 樹葉層 (頂層) -->
+                                <path d="M100 25L62 85H138L100 25Z" fill="#34D399"/>
+                                <path d="M100 25L62 85H100V25Z" fill="#6EE7B7"/>
+                                <!-- 頂端星星 -->
+                                <path d="M100 8L104.5 18.5L116 19.5L107.2 27L109.8 38L100 32L90.2 38L92.8 27L84 19.5L95.5 18.5L100 8Z" fill="#FBBF24"/>
+                                <!-- 裝飾球 -->
+                                <circle cx="80" cy="105" r="5" fill="#EF4444"/>
+                                <circle cx="122" cy="112" r="5" fill="#FBBF24"/>
+                                <circle cx="70" cy="142" r="6" fill="#FBBF24"/>
+                                <circle cx="105" cy="138" r="5" fill="#EF4444"/>
+                                <circle cx="135" cy="145" r="5" fill="#60A5FA"/>
+                                <circle cx="95" cy="70" r="4" fill="#EF4444"/>
+                                <circle cx="112" cy="78" r="4" fill="#FBBF24"/>
+                            </svg>
+                        </div>
+
+                        <!-- 底部藝術字標題 -->
+                        <div class="mb-4 z-10">
+                            <h1 class="font-script text-5xl sm:text-6xl text-amber-300 drop-shadow-md">
+                                Merry Christmas
+                            </h1>
+                            <p class="font-serif text-amber-100/90 text-sm tracking-[0.25em] mt-1">
+                                聖誕快樂・平安喜樂
+                            </p>
+                        </div>
+                    </div>
+
+                    <!-- 封面內側 (翻開後的左側頁面) -->
+                    <div class="backface-hidden rotate-y-180 absolute inset-0 w-full h-full bg-red-900 rounded-2xl shadow-xl border-4 border-amber-400/60 p-6 flex flex-col items-center justify-center text-center text-amber-100">
+                        <div class="border-2 border-dashed border-amber-300/40 rounded-xl w-full h-full flex flex-col items-center justify-center p-6">
+                            <span class="text-5xl mb-4">🦌🛷</span>
+                            <p class="font-script text-3xl text-amber-300 mb-2">Joy & Peace</p>
+                            <p class="font-serif text-sm text-amber-100/80 leading-relaxed">
+                                雪花紛飛的季節，<br>
+                                獻上最誠摯的冬日祝福。
+                            </p>
+                            <div class="mt-6 flex space-x-2 text-xl">
+                                <span>🎁</span>
+                                <span>🔔</span>
+                                <span>🕯️</span>
+                            </div>
+                        </div>
+                    </div>
+
+                </div>
+            </div>
+        </div>
+
+        <!-- 底部快速操作列 -->
+        <div class="mt-6 flex flex-wrap justify-center gap-3 z-20">
+            <button id="toggleOpenBtn" class="bg-emerald-700 hover:bg-emerald-600 text-white px-5 py-2.5 rounded-full text-sm font-medium shadow-lg transition flex items-center space-x-2 cursor-pointer">
+                <span>打開 / 闔上卡片</span>
+            </button>
+            <button id="shareBtn" class="bg-white/15 hover:bg-white/25 backdrop-blur-md text-white border border-white/30 px-5 py-2.5 rounded-full text-sm font-medium shadow-lg transition flex items-center space-x-2 cursor-pointer">
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8.684 13.342C8.886 12.938 9 12.482 9 12c0-.482-.114-.938-.316-1.342m0 2.684a3 3 0 110-2.684m0 2.684l6.632 3.316m-6.632-6l6.632-3.316m0 0a3 3 0 105.367-2.684 3 3 0 00-5.367 2.684zm0 9.316a3 3 0 105.368 2.684 3 3 0 00-5.368-2.684z" />
+                </svg>
+                <span>複製分享連結</span>
+            </button>
+        </div>
+    </main>
+
+    <!-- 頁尾 -->
+    <footer class="relative z-10 text-center py-3 text-amber-200/50 text-xs">
+        設計與祝福 • 願你擁有美好的聖誕節
+    </footer>
+
+    <!-- 自訂祝福語 Modal 視窗 -->
+    <div id="editModal" class="fixed inset-0 z-50 bg-black/70 backdrop-blur-sm hidden items-center justify-center p-4">
+        <div class="bg-white rounded-2xl max-w-md w-full p-6 shadow-2xl transform transition-all">
+            <div class="flex justify-between items-center border-b pb-3 mb-4">
+                <h3 class="font-serif text-xl font-bold text-red-800">撰寫專屬聖誕祝福</h3>
+                <button id="closeModalBtn" class="text-slate-400 hover:text-slate-600 text-2xl leading-none">&times;</button>
+            </div>
+            
+            <form id="cardForm" class="space-y-4">
+                <div>
+                    <label class="block text-sm font-medium text-slate-700 mb-1">收件人稱呼</label>
+                    <input type="text" id="inputRecipient" maxlength="20" placeholder="例如：親愛的小明" class="w-full px-3.5 py-2 border border-slate-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-red-500 text-sm">
+                </div>
+                
+                <div>
+                    <label class="block text-sm font-medium text-slate-700 mb-1">祝福內容</label>
+                    <textarea id="inputMessage" rows="4" maxlength="150" placeholder="寫下你的聖誕祝福..." class="w-full px-3.5 py-2 border border-slate-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-red-500 text-sm resize-none"></textarea>
+                </div>
+
+                <div>
+                    <label class="block text-sm font-medium text-slate-700 mb-1">寄件人署名</label>
+                    <input type="text" id="inputSender" maxlength="20" placeholder="例如：你的好朋友" class="w-full px-3.5 py-2 border border-slate-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-red-500 text-sm">
+                </div>
+
+                <div class="pt-2 flex justify-end space-x-2">
+                    <button type="button" id="cancelModalBtn" class="px-4 py-2 rounded-xl text-sm text-slate-600 hover:bg-slate-100 transition">取消</button>
+                    <button type="submit" class="px-5 py-2 rounded-xl text-sm bg-red-700 hover:bg-red-800 text-white font-medium shadow transition">套用並預覽</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- 自訂提示訊息 Toast (取代 alert) -->
+    <div id="toast" class="fixed bottom-6 left-1/2 transform -translate-x-1/2 z-50 bg-slate-900/90 text-amber-200 border border-amber-400/40 px-5 py-2.5 rounded-full text-sm shadow-2xl transition-all duration-300 opacity-0 pointer-events-none">
+        訊息提示
+    </div>
+
+    <script>
+        /**
+         * 1. 背景飄雪動畫 (Canvas)
+         */
+        const canvas = document.getElementById('snowCanvas');
+        const ctx = canvas.getContext('2d');
+        let width, height, snowflakes = [];
+
+        function resizeCanvas() {
+            width = canvas.width = window.innerWidth;
+            height = canvas.height = window.innerHeight;
+        }
+
+        class Snowflake {
+            constructor() {
+                this.reset(true);
+            }
+            reset(initial = false) {
+                this.x = Math.random() * width;
+                this.y = initial ? Math.random() * height : -10;
+                this.radius = Math.random() * 3 + 1;
+                this.speedY = Math.random() * 1.2 + 0.5;
+                this.speedX = Math.random() * 0.6 - 0.3;
+                this.opacity = Math.random() * 0.6 + 0.3;
+            }
+            update() {
+                this.y += this.speedY;
+                this.x += this.speedX + Math.sin(this.y * 0.01) * 0.3;
+                if (this.y > height + 10) {
+                    this.reset();
+                }
+            }
+            draw() {
+                ctx.beginPath();
+                ctx.arc(this.x, this.y, this.radius, 0, Math.PI * 2);
+                ctx.fillStyle = `rgba(255, 255, 255, ${this.opacity})`;
+                ctx.fill();
+            }
+        }
+
+        function initSnow() {
+            resizeCanvas();
+            const count = Math.min(Math.floor(width / 8), 120);
+            snowflakes = Array.from({ length: count }, () => new Snowflake());
+        }
+
+        function animateSnow() {
+            ctx.clearRect(0, 0, width, height);
+            snowflakes.forEach(flake => {
+                flake.update();
+                flake.draw();
+            });
+            requestAnimationFrame(animateSnow);
+        }
+
+        window.addEventListener('resize', resizeCanvas);
+
+        /**
+         * 2. 卡片開闔互動邏輯
+         */
+        const cardWrapper = document.getElementById('cardWrapper');
+        const cardFront = document.getElementById('cardFront');
+        const toggleOpenBtn = document.getElementById('toggleOpenBtn');
+        const closeCardBtn = document.getElementById('closeCardBtn');
+        const hintText = document.getElementById('hintText');
+        let isCardOpen = false;
+
+        function setCardState(open) {
+            isCardOpen = open;
+            if (isCardOpen) {
+                cardFront.classList.add('rotate-y-180');
+                cardWrapper.classList.add('is-open');
+                hintText.style.opacity = '0';
+                // 首次開啟卡片時，若音樂尚未播放，可自動嘗試播放
+                if (!isPlaying && !userMuted) {
+                    startMusic();
+                }
+            } else {
+                cardFront.classList.remove('rotate-y-180');
+                cardWrapper.classList.remove('is-open');
+                hintText.style.opacity = '1';
+            }
+        }
+
+        cardFront.addEventListener('click', (e) => {
+            e.stopPropagation();
+            setCardState(!isCardOpen);
+        });
+
+        toggleOpenBtn.addEventListener('click', () => {
+            setCardState(!isCardOpen);
+        });
+
+        closeCardBtn.addEventListener('click', (e) => {
+            e.stopPropagation();
+            setCardState(false);
+        });
+
+        /**
+         * 3. 聖誕音樂盒合成器 (Tone.js - We Wish You a Merry Christmas)
+         */
+        const musicBtn = document.getElementById('musicBtn');
+        const musicIcon = document.getElementById('musicIcon');
+        const musicText = document.getElementById('musicText');
+        let isPlaying = false;
+        let userMuted = false;
+        let musicPart = null;
+        let synth = null;
+
+        // 簡譜音符序列: We Wish You a Merry Christmas
+        const melody = [
+            { time: '0:0', note: 'D4', duration: '4n' },
+            { time: '0:1', note: 'G4', duration: '4n' },
+            { time: '0:2', note: 'G4', duration: '8n' },
+            { time: '0:2.5', note: 'A4', duration: '8n' },
+            { time: '0:3', note: 'G4', duration: '8n' },
+            { time: '0:3.5', note: 'F#4', duration: '8n' },
+            { time: '1:0', note: 'E4', duration: '4n' },
+            { time: '1:1', note: 'E4', duration: '4n' },
+            { time: '1:2', note: 'E4', duration: '4n' },
+            { time: '1:3', note: 'A4', duration: '4n' },
+            { time: '2:0', note: 'A4', duration: '8n' },
+            { time: '2:0.5', note: 'B4', duration: '8n' },
+            { time: '2:1', note: 'A4', duration: '8n' },
+            { time: '2:1.5', note: 'G4', duration: '8n' },
+            { time: '2:2', note: 'F#4', duration: '4n' },
+            { time: '2:3', note: 'D4', duration: '4n' },
+            { time: '3:0', note: 'D4', duration: '4n' },
+            { time: '3:1', note: 'B4', duration: '4n' },
+            { time: '3:2', note: 'B4', duration: '8n' },
+            { time: '3:2.5', note: 'C5', duration: '8n' },
+            { time: '3:3', note: 'B4', duration: '8n' },
+            { time: '3:3.5', note: 'A4', duration: '8n' },
+            { time: '4:0', note: 'G4', duration: '4n' },
+            { time: '4:1', note: 'E4', duration: '4n' },
+            { time: '4:2', note: 'D4', duration: '8n' },
+            { time: '4:2.5', note: 'D4', duration: '8n' },
+            { time: '4:3', note: 'E4', duration: '4n' },
+            { time: '5:0', note: 'A4', duration: '4n' },
+            { time: '5:1', note: 'F#4', duration: '4n' },
+            { time: '5:2', note: 'G4', duration: '2n' }
+        ];
+
+        async function startMusic() {
+            try {
+                await Tone.start();
+                if (!synth) {
+                    // 建立清脆的音樂盒音色
+                    synth = new Tone.PolySynth(Tone.Synth, {
+                        oscillator: { type: 'sine' },
+                        envelope: {
+                            attack: 0.02,
+                            decay: 0.3,
+                            sustain: 0.1,
+                            release: 1.2
+                        }
+                    }).toDestination();
+                    synth.volume.value = -8;
+
+                    musicPart = new Tone.Part((time, value) => {
+                        synth.triggerAttackRelease(value.note, value.duration, time);
+                    }, melody);
+
+                    musicPart.loop = true;
+                    musicPart.loopEnd = '6:0';
+                    Tone.Transport.bpm.value = 115;
+                }
+                
+                Tone.Transport.start();
+                musicPart.start(0);
+                isPlaying = true;
+                musicIcon.textContent = '🎵';
+                musicText.textContent = '暫停音樂';
+            } catch (err) {
+                console.warn('音訊播放需要使用者互動:', err);
+            }
+        }
+
+        function stopMusic() {
+            if (Tone.Transport.state === 'started') {
+                Tone.Transport.pause();
+            }
+            isPlaying = false;
+            musicIcon.textContent = '🔇';
+            musicText.textContent = '播放音樂';
+        }
+
+        musicBtn.addEventListener('click', () => {
+            if (isPlaying) {
+                userMuted = true;
+                stopMusic();
+            } else {
+                userMuted = false;
+                startMusic();
+            }
+        });
+
+        /**
+         * 4. 自訂卡片內容與網址參數分享功能
+         */
+        const editBtn = document.getElementById('editBtn');
+        const editModal = document.getElementById('editModal');
+        const closeModalBtn = document.getElementById('closeModalBtn');
+        const cancelModalBtn = document.getElementById('cancelModalBtn');
+        const cardForm = document.getElementById('cardForm');
+        const shareBtn = document.getElementById('shareBtn');
+
+        const displayRecipient = document.getElementById('displayRecipient');
+        const displayMessage = document.getElementById('displayMessage');
+        const displaySender = document.getElementById('displaySender');
+
+        const inputRecipient = document.getElementById('inputRecipient');
+        const inputMessage = document.getElementById('inputMessage');
+        const inputSender = document.getElementById('inputSender');
+
+        // 顯示提示 Toast
+        function showToast(msg) {
+            const toast = document.getElementById('toast');
+            toast.textContent = msg;
+            toast.classList.remove('opacity-0');
+            setTimeout(() => {
+                toast.classList.add('opacity-0');
+            }, 2500);
+        }
+
+        // 從 URL 讀取自訂參數
+        function loadCardFromURL() {
+            const params = new URLSearchParams(window.location.search);
+            const to = params.get('to');
+            const msg = params.get('msg');
+            const from = params.get('from');
+
+            if (to) displayRecipient.textContent = to;
+            if (msg) displayMessage.textContent = msg;
+            if (from) displaySender.textContent = from;
+        }
+
+        // 開啟編輯視窗
+        editBtn.addEventListener('click', () => {
+            inputRecipient.value = displayRecipient.textContent.trim();
+            inputMessage.value = displayMessage.textContent.trim();
+            inputSender.value = displaySender.textContent.trim();
+            editModal.classList.remove('hidden');
+            editModal.classList.add('flex');
+        });
+
+        function closeModal() {
+            editModal.classList.add('hidden');
+            editModal.classList.remove('flex');
+        }
+
+        closeModalBtn.addEventListener('click', closeModal);
+        cancelModalBtn.addEventListener('click', closeModal);
+        editModal.addEventListener('click', (e) => {
+            if (e.target === editModal) closeModal();
+        });
+
+        // 儲存自訂內容並更新 URL
+        cardForm.addEventListener('submit', (e) => {
+            e.preventDefault();
+            const to = inputRecipient.value.trim() || '親愛的朋友';
+            const msg = inputMessage.value.trim() || '祝你聖誕快樂，新年萬事如意！';
+            const from = inputSender.value.trim() || '你的摯友';
+
+            displayRecipient.textContent = to;
+            displayMessage.textContent = msg;
+            displaySender.textContent = from;
+
+            // 更新網址參數以便分享 (不重新整理頁面)
+            const url = new URL(window.location.href);
+            url.searchParams.set('to', to);
+            url.searchParams.set('msg', msg);
+            url.searchParams.set('from', from);
+            window.history.replaceState({}, '', url);
+
+            closeModal();
+            setCardState(true);
+            showToast('✨ 卡片內容已更新！');
+        });
+
+        // 複製分享連結
+        shareBtn.addEventListener('click', () => {
+            const tempInput = document.createElement('input');
+            tempInput.value = window.location.href;
+            document.body.appendChild(tempInput);
+            tempInput.select();
+            try {
+                document.execCommand('copy');
+                showToast('🔗 專屬卡片連結已複製，快傳送給朋友吧！');
+            } catch (err) {
+                showToast('⚠️ 複製失敗，請手動複製網址列');
+            }
+            document.body.removeChild(tempInput);
+        });
+
+        // 頁面載入完成後啟動
+        window.onload = function() {
+            initSnow();
+            animateSnow();
+            loadCardFromURL();
+        };
+    </script>
+</body>
+</html>
